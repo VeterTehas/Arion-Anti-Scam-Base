@@ -1,0 +1,117 @@
+from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, KeyboardButton, WebAppInfo
+from config import OTHER_BOTS, MINI_APP_URL
+
+def user_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🔎 ПРОВЕРИТЬ"), KeyboardButton(text="📜 ИСТОРИЯ")],
+            [KeyboardButton(text="🚨 ПОЖАЛОВАТЬСЯ"), KeyboardButton(text="⚖️ АПЕЛЛЯЦИЯ")],
+            [KeyboardButton(text="💼 СОТРУДНИКИ+"), KeyboardButton(text="📱 MINI APP")],
+        ],
+        resize_keyboard=True
+    )
+
+def admin_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🔎 ПРОВЕРИТЬ"), KeyboardButton(text="📜 ИСТОРИЯ")],
+            [KeyboardButton(text="📊 СТАТИСТИКА"), KeyboardButton(text="🗑 СБРОС")],
+            [KeyboardButton(text="⚡ КОМАНДЫ"), KeyboardButton(text="📱 MINI APP")],
+        ],
+        resize_keyboard=True
+    )
+
+def back_keyboard():
+    return ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="🔙 НАЗАД")]], resize_keyboard=True)
+
+def cancel_keyboard():
+    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 ОТМЕНА", callback_data="cancel_action")]])
+
+def confirm_keyboard(action):
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ ДА", callback_data=f"confirm:{action}:yes"),
+         InlineKeyboardButton(text="❌ НЕТ", callback_data=f"confirm:{action}:no")]
+    ])
+
+def other_bases_keyboard(identifier):
+    items = list(OTHER_BOTS.items())
+    rows = []
+    for i in range(0, len(items), 2):
+        rows.append([InlineKeyboardButton(text=f"🔍 {name}", url=f"https://t.me/{username}?start=check_{identifier}") for name, username in items[i:i+2]])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+def report_types_keyboard():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔥 СКАМ", callback_data="rt:scam"), InlineKeyboardButton(text="⚡ ПОДОЗРИТ.", callback_data="rt:suspicious")],
+        [InlineKeyboardButton(text="💸 НЕВОЗВРАТ", callback_data="rt:money"), InlineKeyboardButton(text="🤖 ФЕЙК", callback_data="rt:fake")],
+        [InlineKeyboardButton(text="❌ ОТМЕНА", callback_data="report:cancel")],
+    ])
+
+def reset_keyboard():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📛 ЖАЛОБЫ", callback_data="reset:reports"), InlineKeyboardButton(text="👥 БАЗУ", callback_data="reset:users")],
+        [InlineKeyboardButton(text="📜 ИСТОРИЮ", callback_data="reset:history"), InlineKeyboardButton(text="🗄 ВСЁ", callback_data="reset:all")],
+        [InlineKeyboardButton(text="❌ ОТМЕНА", callback_data="reset:cancel")],
+    ])
+
+def statuses_keyboard():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔥 Скамер", callback_data="adm_s:scammer"), InlineKeyboardButton(text="💎 Гарант", callback_data="adm_s:guarantor"), InlineKeyboardButton(text="🫧 Доверенный", callback_data="adm_s:trusted")],
+        [InlineKeyboardButton(text="❌ Отмена", callback_data="adm_s:cancel")],
+    ])
+
+def pending_keyboard(report_id):
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Принять", callback_data=f"pnd:approve:{report_id}"), InlineKeyboardButton(text="❌ Отклонить", callback_data=f"pnd:reject:{report_id}")],
+        [InlineKeyboardButton(text="⏩ Следующая", callback_data=f"pnd:next:{report_id}")],
+    ])
+
+def cons_reviewer_keyboard(cons_id):
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Принять", callback_data=f"cons:ok:{cons_id}"), InlineKeyboardButton(text="❌ Отклонить", callback_data=f"cons:no:{cons_id}")],
+        [InlineKeyboardButton(text="🔄 Переписать", callback_data=f"cons:redo:{cons_id}")],
+    ])
+
+def cons_mod_keyboard(cons_id):
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ В базу", callback_data=f"modcons:approve:{cons_id}"), InlineKeyboardButton(text="❌ Отклонить", callback_data=f"modcons:reject:{cons_id}")],
+    ])
+
+def cons_user_keyboard(cons_id):
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📄 Моя жалоба", callback_data=f"cshow:{cons_id}"), InlineKeyboardButton(text="✏️ Написать заново", callback_data=f"cnew:{cons_id}")],
+    ])
+
+def staff_roles_keyboard():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🛡️ Админ", callback_data="sr:admin"), InlineKeyboardButton(text="💎 Гарант", callback_data="sr:guarantor")],
+        [InlineKeyboardButton(text="🔍 Рассмотритель", callback_data="sr:reviewer"), InlineKeyboardButton(text="🔨 Модератор", callback_data="sr:moderator")],
+        [InlineKeyboardButton(text="❌ Отмена", callback_data="sr:cancel")],
+    ])
+
+def channels_keyboard():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="➕ Добавить", callback_data="chan:add"), InlineKeyboardButton(text="🗑 Удалить", callback_data="chan:del")],
+        [InlineKeyboardButton(text="📋 Список", callback_data="chan:list"), InlineKeyboardButton(text="❌ Закрыть", callback_data="chan:close")],
+    ])
+
+def appeal_choice_keyboard():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="👥 ПОМОЩЬ В СДЕЛКЕ", callback_data="appeal:help")],
+        [InlineKeyboardButton(text="⚖️ ОСПОРИТЬ СТАТУС", callback_data="appeal:dispute")],
+        [InlineKeyboardButton(text="🔙 ОТМЕНА", callback_data="cancel_action")]
+    ])
+
+def appeal_reviewer_keyboard(appeal_id):
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Одобрить", callback_data=f"aprev:ok:{appeal_id}"), InlineKeyboardButton(text="❌ Отклонить", callback_data=f"aprev:no:{appeal_id}")],
+        [InlineKeyboardButton(text="⏩ Следующая", callback_data=f"aprev:next:{appeal_id}")],
+    ])
+
+def appeal_mod_keyboard(appeal_id):
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Удалить из базы", callback_data=f"apmod:approve:{appeal_id}"), InlineKeyboardButton(text="❌ Оставить", callback_data=f"apmod:reject:{appeal_id}")],
+    ])
+
+def job_apply_keyboard():
+    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📝 ПОДАТЬ ЗАЯВКУ", callback_data="job:apply")]])
