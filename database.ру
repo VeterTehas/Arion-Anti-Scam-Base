@@ -1,0 +1,511 @@
+import aiosqlite
+from config import DB_PATH
+from utils import now_str
+
+class Database:
+    def __init__(self, path):
+        self.path = path
+        self._conn = None
+
+    async def __aenter__(self):
+        self._conn = await aiosqlite.connect(self.path)
+        self._conn.row_factory = aiosqlite.Row
+        return self._conn
+
+    async def __aexit__(self, *args):
+        if self._conn:
+            await self._conn.close()
+
+def mdb():
+    return Database(DB_PATH)
+
+async def init_db():
+    async with mdb() as db:
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                telegram_id TEXT UNIQUE,
+                username TEXT,
+                status TEXT DEFAULT 'scammer',
+                reason TEXT,
+                evidence TEXT,
+                added_by TEXT,
+                added_at TEXT,
+                updated_at TEXT
+            )
+        """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS check_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                checker_id TEXT,
+                target_id TEXT,
+                result TEXT,
+                checked_at TEXT
+            )
+        """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS bot_users (
+                telegram_id INTEGER PRIMARY KEY,
+                username TEXT,
+                first_name TEXT,
+                joined_at TEXT
+            )
+        """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS reports (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                reporter_id TEXT,
+                target_id TEXT,
+                target_un TEXT,
+                report_type TEXT,
+                description TEXT,
+                evidence TEXT,
+                status TEXT DEFAULT 'pending',
+                created_at TEXT,
+                updated_at TEXT
+            )
+        """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS cons_reports (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                reporter_id TEXT,
+                message_text TEXT,
+                media_file_id TEXT,
+                media_type TEXT,
+                status TEXT DEFAULT 'pending_review',
+                created_at TEXT,
+                updated_at TEXT
+            )
+        """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS staff (
+                telegram_id INTEGER PRIMARY KEY,
+                username TEXT,
+                role TEXT DEFAULT 'reviewer',
+                added_by INTEGER,
+                added_at TEXT
+            )
+        """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS required_channels (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                channel_id TEXT UNIQUE,
+                channel_url TEXT,
+                title TEXT,
+                active INTEGER DEFAULT 1
+            )
+        """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS mod_ranks (
+                telegram_id INTEGER PRIMARY KEY,
+                rank TEXT DEFAULT 'Бронза',
+                total_actions INTEGER DEFAULT 0,
+                rank_actions INTEGER DEFAULT 0,
+                updated_at TEXT
+            )
+        """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS system_stats (
+                stat_key TEXT PRIMARY KEY,
+                stat_value TEXT,
+                updated_at TEXT
+            )
+        """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS mod_action_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                moderator_id TEXT,
+                action TEXT,
+                target TEXT,
+                details TEXT,
+                created_at TEXT
+            )
+        """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS appeals (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                appellant_id TEXT,
+                appellant_username TEXT,
+                target_id TEXT,
+                reason TEXT,
+                evidence TEXT,
+                status TEXT DEFAULT 'pending',
+                reviewer_id TEXT,
+                moderator_id TEXT,
+                reviewer_note TEXT,
+                moderator_note TEXT,
+                created_at TEXT,
+                updated_at TEXT
+            )
+        """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS user_verification (
+                telegram_id INTEGER PRIMARY KEY,
+                verified INTEGER DEFAULT 0,
+                verified_at TEXT
+            )
+        """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS warnings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                chat_id INTEGER,
+                issued_by INTEGER,
+                reason TEXT,
+                expires_at TEXT,
+                issued_at TEXT
+            )
+        """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS job_applications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                applicant_id INTEGER,
+                username TEXT,
+                age INTEGER,
+                communication_rating INTEGER,
+                reason_why TEXT,
+                reason_motivation TEXT,
+                status TEXT DEFAULT 'pending',
+                created_at TEXT
+            )
+        """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS recruitment_settings (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                is_open INTEGER DEFAULT 1,
+                needed_moderators INTEGER DEFAULT 3,
+                needed_reviewers INTEGER DEFAULT 3,
+                needed_appeal_reviewers INTEGER DEFAULT 2,
+                updated_by INTEGER,
+                updated_at TEXT
+            )
+        """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS banned_users (
+                user_id INTEGER PRIMARY KEY,
+                chat_id INTEGER,
+                banned_by INTEGER,
+                until_date TEXT,
+                banned_at TEXT
+            )
+        """)
+        await db.commit()
+
+async def db_count(table, where=""):
+    async with mdb() as db:
+        q = f"SELECT COUNT(*) FROM {table}" + (f" WHERE {where}" if where else "")
+        cur = await db.execute(q)
+        row = await cur.fetchone()
+        return row[0] if row else 0
+
+async def db_register_user(user):
+    async with mdb() as db:
+        await db.execute(
+            "INSERT OR IGNORE INTO bot_users (telegram_id, username, first_name, joined_at) VALUES (?, ?, ?, ?)",
+            (user.id, user.username or "", user.first_name or "", now_str())
+        )
+        await db.commit()
+
+async def is_user_verified(telegram_id):
+    async with mdb() as db:
+        cur = await db.execute("SELECT verified FROM user_verification WHERE telegram_id=?", (telegram_id,))
+        row = await cur.fetchone()
+        return bool(row and row["verified"])
+
+async def mark_verified(telegram_id):
+    async with mdb() as db:
+        await db.execute(
+            "INSERT OR REPLACE INTO user_verification (telegram_id, verified, verified_at) VALUES (?, 1, ?)",
+            (telegram_id, now_str())
+        )
+        await db.commit()
+
+async def get_role(telegram_id):
+    from config import MAIN_ADMIN_ID
+    if telegram_id == MAIN_ADMIN_ID:
+        return "head_admin"
+    async with mdb() as db:
+        cur = await db.execute("SELECT role FROM staff WHERE telegram_id=?", (telegram_id,))
+        row = await cur.fetchone()
+        return row["role"] if row else None
+
+async def db_get_user(identifier):
+    ident = identifier.lstrip("@").lower()
+    async with mdb() as db:
+        cur = await db.execute(
+            "SELECT * FROM users WHERE LOWER(telegram_id)=? OR LOWER(username)=?",
+            (ident, ident)
+        )
+        return await cur.fetchone()
+
+async def db_add_user(telegram_id, username, status, reason, evidence, added_by):
+    _now = now_str()
+    async with mdb() as db:
+        await db.execute(
+            "INSERT OR REPLACE INTO users (telegram_id, username, status, reason, evidence, added_by, added_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (telegram_id, username or "", status, reason, evidence or "", added_by, _now, _now)
+        )
+        await db.commit()
+
+async def db_delete_user(identifier, deleted_by="system"):
+    ident = identifier.lstrip("@").lower()
+    async with mdb() as db:
+        cur = await db.execute("DELETE FROM users WHERE LOWER(telegram_id)=? OR LOWER(username)=?", (ident, ident))
+        await db.commit()
+        return cur.rowcount > 0
+
+async def db_add_history(checker_id, target_id, result):
+    async with mdb() as db:
+        await db.execute(
+            "INSERT INTO check_history (checker_id, target_id, result, checked_at) VALUES (?, ?, ?, ?)",
+            (checker_id, target_id, result, now_str())
+        )
+        await db.commit()
+
+async def db_get_history(checker_id, limit=5):
+    async with mdb() as db:
+        cur = await db.execute(
+            "SELECT target_id, result, checked_at FROM check_history WHERE checker_id=? ORDER BY id DESC LIMIT ?",
+            (str(checker_id), limit)
+        )
+        return await cur.fetchall()
+
+async def inc_stat(key, delta=1):
+    async with mdb() as db:
+        cur = await db.execute("SELECT stat_value FROM system_stats WHERE stat_key=?", (key,))
+        row = await cur.fetchone()
+        val = int(row[0]) if row else 0
+        await db.execute(
+            "INSERT OR REPLACE INTO system_stats (stat_key, stat_value, updated_at) VALUES (?, ?, ?)",
+            (key, str(val + delta), now_str())
+        )
+        await db.commit()
+
+async def get_all_stats():
+    result = {}
+    async with mdb() as db:
+        cur = await db.execute("SELECT stat_key, stat_value FROM system_stats")
+        for row in await cur.fetchall():
+            result[row["stat_key"]] = int(row["stat_value"])
+    return result
+
+async def db_get_all_users():
+    async with mdb() as db:
+        cur = await db.execute("SELECT telegram_id FROM bot_users")
+        return await cur.fetchall()
+
+async def db_export_csv():
+    import io, csv
+    async with mdb() as db:
+        cur = await db.execute("SELECT telegram_id, username, status, reason, evidence, added_by, added_at FROM users ORDER BY added_at DESC")
+        rows = await cur.fetchall()
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["telegram_id", "username", "status", "reason", "evidence", "added_by", "added_at"])
+    for row in rows:
+        writer.writerow([row[i] for i in range(7)])
+    return buf.getvalue().encode("utf-8-sig")
+
+async def db_clear(target):
+    tables = {"reports": "reports", "users": "users", "history": "check_history"}
+    async with mdb() as db:
+        if target == "all":
+            for t in tables.values():
+                await db.execute(f"DELETE FROM {t}")
+        elif target in tables:
+            await db.execute(f"DELETE FROM {tables[target]}")
+        await db.commit()
+
+async def db_add_report(reporter_id, target_id, target_un, report_type, description, evidence):
+    async with mdb() as db:
+        cur = await db.execute(
+            "INSERT INTO reports (reporter_id, target_id, target_un, report_type, description, evidence, status, created_at) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)",
+            (reporter_id, target_id, target_un, report_type, description, evidence or "", now_str())
+        )
+        await db.commit()
+        return cur.lastrowid
+
+async def db_pending_reports(limit=5):
+    async with mdb() as db:
+        cur = await db.execute("SELECT * FROM reports WHERE status='pending' ORDER BY id ASC LIMIT ?", (limit,))
+        return await cur.fetchall()
+
+async def db_update_report_status(report_id, status):
+    async with mdb() as db:
+        await db.execute("UPDATE reports SET status=?, updated_at=? WHERE id=?", (status, now_str(), report_id))
+        await db.commit()
+
+async def db_save_cons(reporter_id, text, media_id, media_type):
+    async with mdb() as db:
+        cur = await db.execute(
+            "INSERT INTO cons_reports (reporter_id, message_text, media_file_id, media_type, status, created_at) VALUES (?, ?, ?, ?, 'pending_review', ?)",
+            (reporter_id, text, media_id or "", media_type or "", now_str())
+        )
+        await db.commit()
+        return cur.lastrowid
+
+async def db_get_cons(cons_id):
+    async with mdb() as db:
+        cur = await db.execute("SELECT * FROM cons_reports WHERE id=?", (cons_id,))
+        return await cur.fetchone()
+
+async def db_update_cons_status(cons_id, status):
+    async with mdb() as db:
+        await db.execute("UPDATE cons_reports SET status=?, updated_at=? WHERE id=?", (status, now_str(), cons_id))
+        await db.commit()
+
+async def db_pending_cons(limit=10):
+    async with mdb() as db:
+        cur = await db.execute("SELECT * FROM cons_reports WHERE status='pending_review' ORDER BY id ASC LIMIT ?", (limit,))
+        return await cur.fetchall()
+
+async def db_create_appeal(appellant_id, appellant_username, target_id, reason, evidence):
+    async with mdb() as db:
+        cur = await db.execute(
+            "INSERT INTO appeals (appellant_id, appellant_username, target_id, reason, evidence, status, created_at) VALUES (?, ?, ?, ?, ?, 'pending', ?)",
+            (appellant_id, appellant_username or "", target_id, reason, evidence or "", now_str())
+        )
+        await db.commit()
+        return cur.lastrowid
+
+async def db_get_appeal(appeal_id):
+    async with mdb() as db:
+        cur = await db.execute("SELECT * FROM appeals WHERE id=?", (appeal_id,))
+        return await cur.fetchone()
+
+async def db_update_appeal(appeal_id, **kwargs):
+    if not kwargs:
+        return
+    sets = ", ".join(f"{k}=?" for k in kwargs)
+    vals = list(kwargs.values()) + [now_str(), appeal_id]
+    async with mdb() as db:
+        await db.execute(f"UPDATE appeals SET {sets}, updated_at=? WHERE id=?", vals)
+        await db.commit()
+
+async def db_pending_appeals(stage="pending", limit=10):
+    async with mdb() as db:
+        cur = await db.execute("SELECT * FROM appeals WHERE status=? ORDER BY id ASC LIMIT ?", (stage, limit))
+        return await cur.fetchall()
+
+async def add_warning(user_id, chat_id, issued_by, expires_at=None):
+    async with mdb() as db:
+        await db.execute(
+            "INSERT INTO warnings (user_id, chat_id, issued_by, expires_at, issued_at) VALUES (?, ?, ?, ?, ?)",
+            (user_id, chat_id, issued_by, expires_at, now_str())
+        )
+        await db.commit()
+        cur = await db.execute(
+            "SELECT COUNT(*) FROM warnings WHERE user_id=? AND chat_id=? AND (expires_at IS NULL OR expires_at > ?)",
+            (user_id, chat_id, now_str())
+        )
+        row = await cur.fetchone()
+        return row[0] if row else 1
+
+async def clear_warnings(user_id, chat_id):
+    async with mdb() as db:
+        await db.execute("DELETE FROM warnings WHERE user_id=? AND chat_id=?", (user_id, chat_id))
+        await db.commit()
+
+async def get_mod_rank(telegram_id):
+    async with mdb() as db:
+        cur = await db.execute("SELECT rank, total_actions, rank_actions FROM mod_ranks WHERE telegram_id=?", (telegram_id,))
+        row = await cur.fetchone()
+        if row:
+            return row["rank"], row["total_actions"], row["rank_actions"]
+    return "Бронза", 0, 0
+
+async def update_mod_rank(telegram_id, increment=1):
+    from config import MOD_RANKS
+    cur_rank, total, rank_actions = await get_mod_rank(telegram_id)
+    new_rank = cur_rank
+    new_rank_actions = rank_actions + increment
+    new_total = total + increment
+    promoted = False
+    rank_index = next((i for i, (r, _) in enumerate(MOD_RANKS) if r == cur_rank), None)
+    if rank_index is not None:
+        need = MOD_RANKS[rank_index][1]
+        if cur_rank != "Семицвет" and need > 0 and new_rank_actions >= need and rank_index + 1 < len(MOD_RANKS):
+            new_rank = MOD_RANKS[rank_index + 1][0]
+            new_rank_actions = 0
+            promoted = True
+    async with mdb() as db:
+        await db.execute(
+            "INSERT OR REPLACE INTO mod_ranks (telegram_id, rank, total_actions, rank_actions, updated_at) VALUES (?, ?, ?, ?, ?)",
+            (telegram_id, new_rank, new_total, new_rank_actions, now_str())
+        )
+        await db.commit()
+    return new_rank if promoted else None
+
+async def get_top_moderators(limit=10):
+    async with mdb() as db:
+        cur = await db.execute("""
+            SELECT m.telegram_id, m.rank, m.total_actions, s.username
+            FROM mod_ranks m
+            LEFT JOIN staff s ON m.telegram_id = s.telegram_id
+            ORDER BY m.total_actions DESC LIMIT ?
+        """, (limit,))
+        return await cur.fetchall()
+
+async def get_recruitment_settings():
+    async with mdb() as db:
+        cur = await db.execute("SELECT * FROM recruitment_settings WHERE id=1")
+        return await cur.fetchone()
+
+async def save_job_application(applicant_id, username, age, rating, reason_why, motivation):
+    async with mdb() as db:
+        cur = await db.execute(
+            "INSERT INTO job_applications (applicant_id, username, age, communication_rating, reason_why, reason_motivation, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (applicant_id, username or "", age, rating, reason_why, motivation, now_str())
+        )
+        await db.commit()
+        return cur.lastrowid
+
+async def get_staff_counts():
+    counts = {"moderator": 0, "reviewer": 0, "appeal_reviewer": 0}
+    async with mdb() as db:
+        cur = await db.execute("SELECT role, COUNT(*) as cnt FROM staff GROUP BY role")
+        for row in await cur.fetchall():
+            if row["role"] in ("moderator", "admin", "head_admin"):
+                counts["moderator"] += row["cnt"]
+            elif row["role"] == "reviewer":
+                counts["reviewer"] += row["cnt"]
+    counts["appeal_reviewer"] = counts["reviewer"]
+    return counts
+
+async def db_get_channels():
+    async with mdb() as db:
+        cur = await db.execute("SELECT * FROM required_channels WHERE active=1")
+        return await cur.fetchall()
+
+async def db_add_channel(channel_id, url, title):
+    async with mdb() as db:
+        await db.execute(
+            "INSERT OR REPLACE INTO required_channels (channel_id, channel_url, title, active) VALUES (?, ?, ?, 1)",
+            (channel_id, url, title)
+        )
+        await db.commit()
+        return True
+
+async def db_delete_channel(channel_id):
+    async with mdb() as db:
+        cur = await db.execute("DELETE FROM required_channels WHERE channel_id=?", (channel_id,))
+        await db.commit()
+        return cur.rowcount > 0
+
+async def add_ban(user_id, chat_id, banned_by, until_date=None):
+    async with mdb() as db:
+        await db.execute(
+            "INSERT OR REPLACE INTO banned_users (user_id, chat_id, banned_by, until_date, banned_at) VALUES (?, ?, ?, ?, ?)",
+            (user_id, chat_id, banned_by, until_date, now_str())
+        )
+        await db.commit()
+
+async def remove_ban(user_id, chat_id):
+    async with mdb() as db:
+        await db.execute("DELETE FROM banned_users WHERE user_id=? AND chat_id=?", (user_id, chat_id))
+        await db.commit()
+
+async def get_expired_bans():
+    async with mdb() as db:
+        cur = await db.execute("SELECT user_id, chat_id FROM banned_users WHERE until_date IS NOT NULL AND until_date <= ?", (now_str(),))
+        return [(row["user_id"], row["chat_id"]) for row in await cur.fetchall()]
