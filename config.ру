@@ -1,0 +1,54 @@
+BOT_TOKEN = "8664913809:AAETuzeGPS4xJ-wrmQz00kg9QypyOLSugjs"
+MAIN_ADMIN_ID = 7156615210
+CONSIDERATION_CHAT_ID = -1003854589019
+REPORT_CHAT_ID = -1003948546635
+CONS_GROUP_CHAT_ID = -1003951489932
+APPEAL_CHAT_ID = -1003961606695
+API_PORT = 8080
+API_SECRET = "ARION new legendary projects"
+MINI_APP_URL = "https://vetertehas.github.io/ArionScamBase-MiniApp/"
+
+OTHER_BOTS = {
+    "Forum": "ForumBaseRobot",
+    "Syndicate": "scambasenft_bot",
+    "TonTake": "TonTakeScammersBot",
+    "Gid": "GidbanBot",
+    "SafeBase": "SafeBase_checkbot",
+}
+
+DB_PATH = "arion_shared.db"
+RATE_LIMIT_SECONDS = 3
+FSM_TIMEOUT_SEC = 600
+BROADCAST_BATCH_SIZE = 25
+BROADCAST_COOLDOWN = 0.05
+CHECK_CACHE_TTL = 300
+
+DESIGN_HEADER = "✨ ARION SCAM BASE — ваш цифровой щит"
+DESIGN_DIVIDER = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+DESIGN_FOOTER = "🛡️ ARION защищает честных людей"
+
+STATUS_EMOJI = {"scammer": "🔥", "guarantor": "💎", "trusted": "🫧"}
+
+ROLE_LABELS = {
+    "head_admin": "👑 Главный Администратор",
+    "admin": "🛡️ Администратор",
+    "guarantor": "💎 Гарант",
+    "reviewer": "🔍 Рассмотритель",
+    "moderator": "🔨 Модератор",
+}
+
+MOD_RANKS = [
+    ("Бронза", 35), ("Железо", 35), ("Медь", 35),
+    ("Серебро", 50), ("Золото", 50), ("Платина", 50),
+    ("Алмаз", 75), ("Сапфир", 75), ("Рубин", 75),
+    ("Семицвет", 0),
+]
+
+RANK_EMOJI = {
+    "Бронза": "🥉", "Железо": "⚙️", "Медь": "🔶",
+    "Серебро": "🥈", "Золото": "🥇", "Платина": "💎",
+    "Алмаз": "💠", "Сапфир": "🔷", "Рубин": "🔴",
+    "Семицвет": "🌈",
+}
+
+VERIFICATION_FRUITS = ["🍇", "🍍", "🥭", "🍎"]
