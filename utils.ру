@@ -1,0 +1,45 @@
+import re
+import html
+from datetime import datetime, timedelta
+
+def now_str():
+    return datetime.now().strftime("%d.%m.%Y %H:%M")
+
+def sanitize(text):
+    if not text:
+        return ""
+    return str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+def validate_identifier(identifier):
+    ident = identifier.strip().lstrip("@")
+    if re.match(r"^\d{5,15}$", ident):
+        return ident
+    if re.match(r"^[a-zA-Z0-9_]{4,32}$", ident):
+        return ident
+    return None
+
+def parse_time_delta(text):
+    if not text:
+        return None
+    m = re.match(r"(\d+)\s*(day|days|d|hour|hours|h|minute|minutes|min|m)", text.lower())
+    if not m:
+        return None
+    value, unit = int(m.group(1)), m.group(2)
+    if unit.startswith("d"):
+        return timedelta(days=value)
+    if unit.startswith("h"):
+        return timedelta(hours=value)
+    return timedelta(minutes=value)
+
+def progress_bar(pct):
+    filled = pct // 10
+    return f"[{'█' * filled}{'░' * (10 - filled)}] {pct}%"
+
+def escape_html(text):
+    if not text:
+        return ""
+    return html.escape(str(text))
+
+def format_premium(title, content, emoji="📌"):
+    from config import DESIGN_HEADER, DESIGN_DIVIDER, DESIGN_FOOTER
+    return f"{DESIGN_HEADER}\n{DESIGN_DIVIDER}\n\n{emoji} **{title}**\n\n{content}\n\n{DESIGN_DIVIDER}\n{DESIGN_FOOTER}"
