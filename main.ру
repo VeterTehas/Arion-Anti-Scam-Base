@@ -1,0 +1,114 @@
+import asyncio
+import logging
+import sys
+from datetime import datetime
+
+from aiogram import Bot, Dispatcher
+from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.types import BotCommand
+
+from config import BOT_TOKEN, API_PORT, DESIGN_HEADER
+from database import init_db, db_get_all_users, db_count, db_export_csv, db_clear
+from utils import now_str, format_premium
+from keyboards import user_keyboard, admin_keyboard, back_keyboard, cancel_keyboard, confirm_keyboard
+from handlers import router
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [ArionBot] %(levelname)-8s %(message)s",
+    handlers=[
+        logging.FileHandler("bot.log", encoding="utf-8"),
+        logging.StreamHandler(sys.stdout),
+    ],
+)
+logger = logging.getLogger("ArionBot")
+
+async def set_commands(bot: Bot):
+    commands = [
+        BotCommand(command="start", description="💎 Запуск"),
+        BotCommand(command="check", description="🔎 Проверить"),
+        BotCommand(command="check_list", description="📊 Массовая проверка"),
+        BotCommand(command="cons", description="📝 Жалоба (форма)"),
+        BotCommand(command="report", description="🚨 Быстрая жалоба"),
+        BotCommand(command="appeal", description="⚖️ Апелляция"),
+        BotCommand(command="admin", description="🛠 Админ-центр"),
+        BotCommand(command="addscam", description="➕ Добавить в базу"),
+        BotCommand(command="delscam", description="🗑 Удалить из базы"),
+        BotCommand(command="addstaff", description="👤 Добавить сотрудника"),
+        BotCommand(command="delstaff", description="❌ Удалить сотрудника"),
+        BotCommand(command="channels", description="📢 Каналы"),
+        BotCommand(command="pending", description="📋 Жалобы"),
+        BotCommand(command="pending_appeals", description="⚖️ Апелляции"),
+        BotCommand(command="export", description="📊 CSV"),
+        BotCommand(command="broadcast", description="📢 Рассылка"),
+        BotCommand(command="myrank", description="🏅 Мой ранг"),
+        BotCommand(command="modstop", description="🏆 Топ модераторов"),
+        BotCommand(command="setrank", description="👑 Установить ранг"),
+        BotCommand(command="mute", description="🔇 Замутить"),
+        BotCommand(command="unmute", description="🔊 Снять мут"),
+        BotCommand(command="ban", description="⛔ Забанить"),
+        BotCommand(command="unban", description="✅ Разбанить"),
+        BotCommand(command="warn", description="⚠️ Варн"),
+        BotCommand(command="unwarn", description="🗑 Снять варны"),
+        BotCommand(command="commands", description="⚡ Команды"),
+    ]
+    try:
+        await bot.set_my_commands(commands)
+        logger.info("✅ Команды установлены")
+    except Exception as e:
+        logger.error(f"Ошибка установки команд: {e}")
+
+async def start_api_server():
+    from aiohttp import web
+    from api_server import setup_routes
+    app = web.Application()
+    setup_routes(app)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    await web.TCPSite(runner, "0.0.0.0", API_PORT).start()
+    logger.info(f"✅ HTTP API запущен на порту {API_PORT}")
+
+async def auto_unban_task():
+    from database import get_expired_bans, remove_ban
+    while True:
+        await asyncio.sleep(3600)
+        try:
+            expired = await get_expired_bans()
+            for user_id, chat_id in expired:
+                try:
+                    from aiogram import Bot
+                    bot = Bot(token=BOT_TOKEN)
+                    await bot.unban_chat_member(chat_id, user_id)
+                    await remove_ban(user_id, chat_id)
+                    logger.info(f"Auto-unbanned {user_id} in {chat_id}")
+                except Exception as e:
+                    logger.error(f"Auto-unban error: {e}")
+        except Exception as e:
+            logger.error(f"Auto-unban task error: {e}")
+
+async def main():
+    logger.info(DESIGN_HEADER)
+    logger.info("💎 Arion ScamBase v14.3 — модульная версия")
+
+    await init_db()
+    logger.info("✅ База данных инициализирована")
+
+    asyncio.create_task(start_api_server())
+    asyncio.create_task(auto_unban_task())
+
+    bot = Bot(token=BOT_TOKEN)
+    await set_commands(bot)
+
+    dp = Dispatcher(storage=MemoryStorage())
+    dp.include_router(router)
+
+    logger.info("🟢 БОТ ЗАПУЩЕН")
+    try:
+        await dp.start_polling(bot)
+    except KeyboardInterrupt:
+        logger.info("🔴 Бот остановлен")
+    finally:
+        await bot.session.close()
+
+if __name__ == "__main__":
+    asyncio.run(main())
